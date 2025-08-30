@@ -40,7 +40,7 @@ export default function Navbar() {
                             </a>
                         </li>
                         <li>
-                            <a href="#pricing" className="hover:text-purple-600 focus:text-color-primary transition">
+                            <a href="/pricing" className="hover:text-purple-600 focus:text-color-primary transition">
                                 Pricing
                             </a>
                         </li>
