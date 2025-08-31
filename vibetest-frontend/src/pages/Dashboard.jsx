@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import LogoImg from "../assets/logo.png"
 
 // Inline SVG Icons
@@ -66,29 +67,14 @@ const sidebarItems = [
     { name: "Logout", icon: LogoutIcon }
 ];
 
-const mockAppData = [
-    { name: "AI Blog Generator", status: "Passed", lastScan: "2 hours ago", certification: "Certified" },
-    { name: "Ecommerce Backend", status: "Failed", lastScan: "1 day ago", certification: "Not Certified" },
-    { name: "Marketing Tool", status: "Passed", lastScan: "3 days ago", certification: "Certified" },
-];
-
-const mockTestResults = [
-    { id: "T101", appName: "AI Blog Generator", bugsFound: 0, status: "Passed", date: "Aug 29, 2025" },
-    { id: "T102", appName: "Ecommerce Backend", bugsFound: 5, status: "Failed", date: "Aug 28, 2025" },
-    { id: "T103", appName: "Marketing Tool", bugsFound: 0, status: "Passed", date: "Aug 27, 2025" },
-];
-
-const mockBillingData = [
-    { invoiceId: "INV-001", date: "Aug 15, 2025", amount: "$49.99", status: "Paid" },
-    { invoiceId: "INV-002", date: "Jul 15, 2025", amount: "$49.99", status: "Paid" },
-    { invoiceId: "INV-003", date: "Jun 15, 2025", amount: "$29.99", status: "Paid" },
-];
-
-const DashboardPage = () => (
+const DashboardPage = ({ stats, apps, onNewScan, onLogout }) => (
     <>
         <header className="flex justify-between items-center mb-10">
             <h1 className="text-4xl font-extrabold text-slate-900">Developer Dashboard</h1>
-            <button className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:bg-indigo-700 transition-colors duration-200">
+            <button
+                onClick={onNewScan}
+                className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:bg-indigo-700 transition-colors duration-200"
+            >
                 + New App Scan
             </button>
         </header>
@@ -99,21 +85,21 @@ const DashboardPage = () => (
                     <ScanIcon className="w-8 h-8 mr-3" />
                     <h3 className="text-lg text-slate-600">Scans Run</h3>
                 </div>
-                <p className="text-5xl font-extrabold text-blue-600">24</p>
+                <p className="text-5xl font-extrabold text-blue-600">{stats?.total_scans || 0}</p>
             </div>
             <div className="p-8 rounded-2xl bg-white shadow-lg border border-slate-200">
                 <div className="flex items-center text-red-600 mb-2">
                     <BugIcon className="w-8 h-8 mr-3" />
                     <h3 className="text-lg text-slate-600">Bugs Found</h3>
                 </div>
-                <p className="text-5xl font-extrabold text-red-600">12</p>
+                <p className="text-5xl font-extrabold text-red-600">{stats?.total_bugs || 0}</p>
             </div>
             <div className="p-8 rounded-2xl bg-white shadow-lg border border-slate-200">
                 <div className="flex items-center text-green-600 mb-2">
                     <PassedIcon className="w-8 h-8 mr-3" />
                     <h3 className="text-lg text-slate-600">Passed Apps</h3>
                 </div>
-                <p className="text-5xl font-extrabold text-green-600">12</p>
+                <p className="text-5xl font-extrabold text-green-600">{stats?.passed_apps || 0}</p>
             </div>
         </div>
 
@@ -130,20 +116,26 @@ const DashboardPage = () => (
                         </tr>
                     </thead>
                     <tbody>
-                        {mockAppData.map((app, index) => (
+                        {apps && apps.length > 0 ? apps.map((app, index) => (
                             <tr key={index} className="border-t border-slate-100 hover:bg-slate-50 transition-colors duration-200">
                                 <td className="p-4 font-semibold text-slate-800">{app.name}</td>
                                 <td className="p-4">
-                                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${app.status === "Passed" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                                        {app.status}
+                                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${app.status === "completed" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
+                                        {app.status === "completed" ? "Completed" : app.status}
                                     </span>
                                 </td>
-                                <td className="p-4 text-slate-600">{app.lastScan}</td>
+                                <td className="p-4 text-slate-600">{app.last_scan ? new Date(app.last_scan).toLocaleDateString() : "Never"}</td>
                                 <td className="p-4">
                                     <span className="text-indigo-600 font-semibold">{app.certification === "Certified" ? "✅ Certified" : "❌ Not Certified"}</span>
                                 </td>
                             </tr>
-                        ))}
+                        )) : (
+                            <tr>
+                                <td colSpan="4" className="p-8 text-center text-slate-500">
+                                    No apps uploaded yet. Click "New App Scan" to get started!
+                                </td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -151,7 +143,7 @@ const DashboardPage = () => (
     </>
 );
 
-const MyAppsPage = () => (
+const MyAppsPage = ({ apps }) => (
     <>
         <h1 className="text-4xl font-extrabold text-slate-900 mb-8">My Apps</h1>
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-slate-200">
@@ -166,17 +158,23 @@ const MyAppsPage = () => (
                         </tr>
                     </thead>
                     <tbody>
-                        {mockAppData.map((app, index) => (
+                        {apps && apps.length > 0 ? apps.map((app, index) => (
                             <tr key={index} className="border-t border-slate-100 hover:bg-slate-50 transition-colors duration-200">
                                 <td className="p-4 font-semibold text-slate-800">{app.name}</td>
                                 <td className="p-4">
-                                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${app.status === "Passed" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                                        {app.status}
+                                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${app.status === "completed" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
+                                        {app.status === "completed" ? "Completed" : app.status}
                                     </span>
                                 </td>
-                                <td className="p-4 text-slate-600">{app.lastScan}</td>
+                                <td className="p-4 text-slate-600">{app.last_scan ? new Date(app.last_scan).toLocaleDateString() : "Never"}</td>
                             </tr>
-                        ))}
+                        )) : (
+                            <tr>
+                                <td colSpan="3" className="p-8 text-center text-slate-500">
+                                    No apps uploaded yet.
+                                </td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -281,13 +279,80 @@ const LogoutPage = () => (
 
 export default function App() {
     const [currentPage, setCurrentPage] = useState("Dashboard");
+    const [stats, setStats] = useState(null);
+    const [apps, setApps] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        fetchDashboardData();
+    }, []);
+
+    const fetchDashboardData = async () => {
+        try {
+            // Fetch stats
+            const statsRes = await fetch('http://localhost:8000/api/stats.php', {
+                credentials: 'include'
+            });
+            
+            // Fetch apps
+            const appsRes = await fetch('http://localhost:8000/api/apps.php', {
+                credentials: 'include'
+            });
+
+            if (statsRes.status === 401 || appsRes.status === 401) {
+                // User not authenticated, redirect to login
+                navigate('/login');
+                return;
+            }
+
+            if (statsRes.ok) {
+                const statsData = await statsRes.json();
+                setStats(statsData.stats);
+            }
+
+            if (appsRes.ok) {
+                const appsData = await appsRes.json();
+                setApps(appsData.apps || []);
+            }
+        } catch (error) {
+            console.error('Error fetching dashboard data:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleNewScan = () => {
+        navigate('/upload');
+    };
+
+    const handleLogout = async () => {
+        try {
+            await fetch('http://localhost:8000/auth/logout.php', {
+                credentials: 'include'
+            });
+            localStorage.removeItem('user');
+            navigate('/login');
+        } catch (error) {
+            console.error('Logout error:', error);
+            navigate('/login');
+        }
+    };
 
     const renderPage = () => {
+        if (loading) {
+            return (
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-xl text-slate-600">Loading...</div>
+                </div>
+            );
+        }
+
         switch (currentPage) {
             case "Dashboard":
-                return <DashboardPage />;
+                return <DashboardPage stats={stats} apps={apps} onNewScan={handleNewScan} />;
             case "My Apps":
-                return <MyAppsPage />;
+                return <MyAppsPage apps={apps} />;
             case "Test Results":
                 return <TestResultsPage />;
             case "Certification":
@@ -295,9 +360,10 @@ export default function App() {
             case "Billing":
                 return <BillingPage />;
             case "Logout":
+                handleLogout();
                 return <LogoutPage />;
             default:
-                return <DashboardPage />;
+                return <DashboardPage stats={stats} apps={apps} onNewScan={handleNewScan} />;
         }
     };
 

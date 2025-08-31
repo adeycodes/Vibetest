@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 // Inline SVG Icon for success
 const CheckmarkIcon = (props) => (
@@ -14,30 +15,83 @@ export default function UploadPage() {
     const [zipFile, setZipFile] = useState(null);
     const [githubUrl, setGithubUrl] = useState('');
     const [codeSnippet, setCodeSnippet] = useState('');
+    const [error, setError] = useState('');
+    const navigate = useNavigate();
 
-    const handleScan = () => {
+    const handleScan = async () => {
+        if (!zipFile && !githubUrl && !codeSnippet) {
+            setError('Please provide a ZIP file, GitHub URL, or code snippet to scan.');
+            return;
+        }
+
         setIsScanning(true);
         setProgress(0);
         setResult(null);
+        setError('');
 
-        // This is where we now use the state variables, resolving the ESLint error.
-        // In a real application, you would send this data to an API for scanning.
-        console.log("Starting scan with the following inputs:");
-        console.log("ZIP File:", zipFile);
-        console.log("GitHub URL:", githubUrl);
-        console.log("Code Snippet:", codeSnippet);
+        try {
+            // Step 1: Upload file
+            const formData = new FormData();
+            if (zipFile) {
+                formData.append('file', zipFile);
+            } else if (codeSnippet) {
+                // Create a temporary file for code snippet
+                const blob = new Blob([codeSnippet], { type: 'text/plain' });
+                formData.append('file', blob, 'code-snippet.txt');
+            }
 
-        const interval = setInterval(() => {
-            setProgress(prev => {
-                if (prev >= 100) {
-                    clearInterval(interval);
-                    setResult({ bugs: 7, score: 82, issues: 2 });
-                    setIsScanning(false);
-                    return 100;
-                }
-                return prev + 10;
+            setProgress(20);
+
+            const uploadRes = await fetch('http://localhost:8000/upload.php', {
+                method: 'POST',
+                credentials: 'include',
+                body: formData
             });
-        }, 300);
+
+            if (uploadRes.status === 401) {
+                navigate('/login');
+                return;
+            }
+
+            if (!uploadRes.ok) {
+                throw new Error('Upload failed');
+            }
+
+            const uploadData = await uploadRes.json();
+            setProgress(50);
+
+            // Step 2: Start scan
+            const scanFormData = new FormData();
+            scanFormData.append('scan_id', uploadData.scan_id);
+
+            setProgress(70);
+
+            const scanRes = await fetch('http://localhost:8000/scan/run.php', {
+                method: 'POST',
+                credentials: 'include',
+                body: scanFormData
+            });
+
+            if (!scanRes.ok) {
+                throw new Error('Scan failed');
+            }
+
+            const scanData = await scanRes.json();
+            setProgress(100);
+
+            setResult({
+                bugs: scanData.result.bugs_found || 0,
+                score: scanData.result.performance_score || 0,
+                issues: scanData.result.security_issues || 0,
+                scan_id: scanData.scan_id
+            });
+
+        } catch (error) {
+            console.error('Scan error:', error);
+            setError('Scan failed: ' + error.message);
+        } finally {
+            setIsScanning(false);
+        }
     };
 
     return (
@@ -51,6 +105,11 @@ export default function UploadPage() {
                 </header>
 
                 <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-200">
+                    {error && (
+                        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+                            <p className="text-red-700 font-medium">{error}</p>
+                        </div>
+                    )}
                     <div className="space-y-6">
                         <div>
                             <label className="block text-slate-700 font-semibold mb-2">Upload ZIP</label>
@@ -132,9 +191,26 @@ export default function UploadPage() {
                                     <p className="text-2xl font-bold text-green-900">{result.issues}</p>
                                 </div>
                             </div>
-                            <button className="mt-6 bg-slate-900 text-white px-6 py-3 rounded-xl font-semibold hover:bg-slate-700 transition-colors duration-200">
-                                View Full Report
-                            </button>
+                            <div className="mt-6 space-x-4">
+                                <button
+                                    onClick={() => navigate('/dashboard')}
+                                    className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-indigo-700 transition-colors duration-200"
+                                >
+                                    Go to Dashboard
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setResult(null);
+                                        setProgress(0);
+                                        setZipFile(null);
+                                        setGithubUrl('');
+                                        setCodeSnippet('');
+                                    }}
+                                    className="bg-slate-900 text-white px-6 py-3 rounded-xl font-semibold hover:bg-slate-700 transition-colors duration-200"
+                                >
+                                    Scan Another App
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>

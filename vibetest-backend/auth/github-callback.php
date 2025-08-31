@@ -1,6 +1,4 @@
 
-
-
 <?php
 // Allow from any origin during development (lock down in production)
 header("Access-Control-Allow-Origin: http://localhost:5173");
