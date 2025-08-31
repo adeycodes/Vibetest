@@ -18,81 +18,126 @@ export default function UploadPage() {
     const [error, setError] = useState('');
     const navigate = useNavigate();
 
-    const handleScan = async () => {
-        if (!zipFile && !githubUrl && !codeSnippet) {
-            setError('Please provide a ZIP file, GitHub URL, or code snippet to scan.');
-            return;
-        }
+   const handleScan = async () => {
+  // Validate input
+  if (!zipFile && !githubUrl && !codeSnippet) {
+    setError('Please provide a ZIP file, GitHub URL, or code snippet to scan.');
+    return;
+  }
 
-        setIsScanning(true);
-        setProgress(0);
-        setResult(null);
-        setError('');
+  // Reset states
+  setIsScanning(true);
+  setProgress(0);
+  setResult(null);
+  setError('');
 
-        try {
-            // Step 1: Upload file
-            const formData = new FormData();
-            if (zipFile) {
-                formData.append('file', zipFile);
-            } else if (codeSnippet) {
-                // Create a temporary file for code snippet
-                const blob = new Blob([codeSnippet], { type: 'text/plain' });
-                formData.append('file', blob, 'code-snippet.txt');
-            }
+  try {
+    let scanId = null;
 
-            setProgress(20);
+    // === Step 1: Upload or Register Source ===
+    setProgress(20);
 
-            const uploadRes = await fetch('http://localhost:8000/upload.php', {
-                method: 'POST',
-                credentials: 'include',
-                body: formData
-            });
+    if (githubUrl) {
+      // 🌐 Handle GitHub URL
+      const cleanUrl = githubUrl.trim();
 
-            if (uploadRes.status === 401) {
-                navigate('/login');
-                return;
-            }
+      // Basic validation
+      if (!cleanUrl.startsWith('http') || !cleanUrl.includes('github.com')) {
+        throw new Error('Invalid GitHub URL. Must be a valid https://github.com/... repository.');
+      }
 
-            if (!uploadRes.ok) {
-                throw new Error('Upload failed');
-            }
+      // Optional: Normalize URL (add .git if missing)
+      const repoUrl = cleanUrl.endsWith('.git') ? cleanUrl : `${cleanUrl}.git`;
 
-            const uploadData = await uploadRes.json();
-            setProgress(50);
+      const response = await fetch('http://localhost:8000/upload.php', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repo_url: repoUrl }),
+      });
 
-            // Step 2: Start scan
-            const scanFormData = new FormData();
-            scanFormData.append('scan_id', uploadData.scan_id);
+      if (response.status === 401) {
+        navigate('/login');
+        return;
+      }
 
-            setProgress(70);
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Upload failed: ${text.slice(0, 100)}`);
+      }
 
-            const scanRes = await fetch('http://localhost:8000/scan/run.php', {
-                method: 'POST',
-                credentials: 'include',
-                body: scanFormData
-            });
+      const data = await response.json();
+      scanId = data.scan_id;
 
-            if (!scanRes.ok) {
-                throw new Error('Scan failed');
-            }
+    } else {
+      // 📦 Handle ZIP or Code Snippet (FormData)
+      const formData = new FormData();
+      if (zipFile) {
+        formData.append('file', zipFile);
+      } else if (codeSnippet) {
+        const blob = new Blob([codeSnippet], { type: 'text/plain' });
+        formData.append('file', blob, 'code-snippet.txt');
+      }
 
-            const scanData = await scanRes.json();
-            setProgress(100);
+      const uploadRes = await fetch('http://localhost:8000/upload.php', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
 
-            setResult({
-                bugs: scanData.result.bugs_found || 0,
-                score: scanData.result.performance_score || 0,
-                issues: scanData.result.security_issues || 0,
-                scan_id: scanData.scan_id
-            });
+      if (uploadRes.status === 401) {
+        navigate('/login');
+        return;
+      }
 
-        } catch (error) {
-            console.error('Scan error:', error);
-            setError('Scan failed: ' + error.message);
-        } finally {
-            setIsScanning(false);
-        }
-    };
+      if (!uploadRes.ok) {
+        const text = await uploadRes.text();
+        throw new Error(`Upload failed: ${text.slice(0, 100)}`);
+      }
+
+      const uploadData = await uploadRes.json();
+      scanId = uploadData.scan_id;
+    }
+
+    setProgress(50);
+
+    // === Step 2: Start Scan ===
+    const scanFormData = new FormData();
+    scanFormData.append('scan_id', scanId);
+
+    setProgress(70);
+
+    const scanRes = await fetch('http://localhost:8000/scan/run.php', {
+      method: 'POST',
+      credentials: 'include',
+      body: scanFormData,
+    });
+
+    if (!scanRes.ok) {
+      const text = await scanRes.text();
+      throw new Error(`Scan execution failed: ${text.slice(0, 100)}`);
+    }
+
+    const scanData = await scanRes.json();
+    setProgress(100);
+
+    // === Step 3: Format Result ===
+    setResult({
+      bugs: scanData.result?.bugs_found ?? 0,
+      issues: scanData.result?.security_issues ?? 0,
+      score: scanData.result?.performance_score ?? 0,
+      scan_id: scanData.scan_id,
+      code_health: scanData.result?.code_health || 'unknown',
+      total_issues: scanData.result?.issues?.length || 0,
+    });
+
+  } catch (error) {
+    console.error('Scan error:', error);
+    setError(error.message || 'An unknown error occurred during scanning.');
+  } finally {
+    setIsScanning(false);
+  }
+};
 
     return (
         <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 antialiased text-slate-900">

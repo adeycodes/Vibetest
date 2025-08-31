@@ -1,0 +1,12 @@
+# EDUCATIONAL PURPOSES ONLY: EXAMPLE OF BAD CODE
+# This function contains intentional errors
+def calculate_average(numbers):
+    total = 0
+    for i in range(len(numbers)):
+        total += numbers[i]
+    average = total / len(numbers)  # No check for empty list
+    return average
+
+# This will crash if called with an empty list
+result = calculate_average([])  # ZeroDivisionError!
+print("The average is:", result)
